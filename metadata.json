@@ -1,0 +1,6 @@
+{
+  "name": "BlueMez",
+  "description": "Offline Bluetooth messenger for real-time text, images, and video transfers between nearby Android phones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

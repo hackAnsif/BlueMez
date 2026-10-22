@@ -1,0 +1,564 @@
+package com.example.ui.screens
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.launch
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.BlueMezApp
+import com.example.data.local.entity.AttachmentEntity
+import com.example.data.local.entity.MessageEntity
+import com.example.data.local.entity.MessageStatus
+import com.example.data.local.entity.TransferStatus
+import com.example.ui.components.EditFriendNameDialog
+import com.example.ui.components.UserAvatar
+import com.example.ui.theme.CyanAccent
+import com.example.ui.theme.StatusConnected
+import com.example.ui.theme.StatusDisconnected
+import com.example.ui.viewmodel.ChatViewModel
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatScreen(
+    viewModel: ChatViewModel,
+    onNavigateBack: () -> Unit,
+    onNavigateToMediaViewer: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val app = context.applicationContext as BlueMezApp
+    val messages by viewModel.messages.collectAsState()
+    val friend by viewModel.friend.collectAsState()
+    val isConnected by viewModel.isConnectedToPeer.collectAsState()
+    val isPeerTyping by viewModel.isPeerTyping.collectAsState()
+    val inputText by viewModel.inputText.collectAsState()
+
+    var showEditNameDialog by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    // Scroll to bottom when new messages arrive
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    val mediaPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let {
+            val mimeType = context.contentResolver.getType(it) ?: "application/octet-stream"
+            val isVideo = mimeType.startsWith("video/")
+            val defaultName = if (isVideo) "video_${System.currentTimeMillis()}.mp4" else "image_${System.currentTimeMillis()}.jpg"
+            viewModel.sendMedia(it, defaultName, mimeType)
+        }
+    }
+
+    if (showEditNameDialog) {
+        EditFriendNameDialog(
+            initialName = friend?.customName ?: "",
+            onDismiss = { showEditNameDialog = false },
+            onConfirm = { newName ->
+                viewModel.updateFriendCustomName(newName)
+                showEditNameDialog = false
+            }
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    val displayName = friend?.customName ?: friend?.originalDisplayName ?: "Peer ${viewModel.peerId.take(6)}"
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { showEditNameDialog = true }
+                    ) {
+                        UserAvatar(name = displayName, size = 38)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = displayName,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit name",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isConnected) StatusConnected else StatusDisconnected)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isPeerTyping) "typing..." else if (isConnected) "Connected (Bluetooth)" else "Offline (Queued)",
+                                    fontSize = 11.sp,
+                                    color = if (isPeerTyping) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag("chat_back_button")
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            // Messages LazyColumn
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(messages, key = { it.messageId }) { msg ->
+                    MessageBubble(
+                        message = msg,
+                        app = app,
+                        onRetry = { viewModel.retryMessage(msg.messageId) },
+                        onDelete = { viewModel.deleteMessage(msg.messageId) },
+                        onOpenMedia = { onNavigateToMediaViewer(it) }
+                    )
+                }
+            }
+
+            // Peer typing indicator pill
+            AnimatedVisibility(visible = isPeerTyping) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${friend?.customName ?: "Peer"} is typing...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            // Message Composer Bottom Bar
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            mediaPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                            )
+                        },
+                        modifier = Modifier.testTag("attach_media_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = "Attach File",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { viewModel.onInputTextChanged(it) },
+                        placeholder = { Text("Message (Bluetooth offline)...") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("chat_input_field"),
+                        shape = RoundedCornerShape(24.dp),
+                        maxLines = 4,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    IconButton(
+                        onClick = { viewModel.sendMessage() },
+                        enabled = inputText.isNotBlank(),
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .testTag("send_message_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send",
+                            tint = if (inputText.isNotBlank()) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MessageBubble(
+    message: MessageEntity,
+    app: BlueMezApp,
+    onRetry: () -> Unit,
+    onDelete: () -> Unit,
+    onOpenMedia: (String) -> Unit
+) {
+    val context = LocalContext.current
+    var showMenu by remember { mutableStateOf(false) }
+    val isOutgoing = message.isOutgoing
+    val alignment = if (isOutgoing) Alignment.CenterEnd else Alignment.CenterStart
+    val bubbleColor = if (isOutgoing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isOutgoing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    val dateFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = alignment
+    ) {
+        Column(
+            horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start,
+            modifier = Modifier.widthIn(max = 300.dp)
+        ) {
+            Surface(
+                color = bubbleColor,
+                shape = RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (isOutgoing) 16.dp else 4.dp,
+                    bottomEnd = if (isOutgoing) 4.dp else 16.dp
+                ),
+                modifier = Modifier
+                    .testTag("message_bubble_${message.messageId}")
+                    .clickable {
+                        // If has attachment, open media viewer
+                        message.attachmentId?.let { onOpenMedia(it) }
+                    }
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    // Attachment Preview if present
+                    message.attachmentId?.let { attachId ->
+                        val attachmentFlow = remember(attachId) { app.chatRepository.getAttachmentFlow(attachId) }
+                        val attachment by attachmentFlow.collectAsState(initial = null)
+
+                        attachment?.let { attach ->
+                            AttachmentBubbleContent(
+                                attachment = attach,
+                                isOutgoing = isOutgoing,
+                                onOpen = { onOpenMedia(attach.attachmentId) },
+                                onCancel = {
+                                    app.applicationScope.launch {
+                                        app.transferManager.cancelTransfer(attach.attachmentId)
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+                    }
+
+                    // Text Content (Supports Unicode, Malayalam, Emojis)
+                    if (message.text.isNotBlank() && message.attachmentId == null) {
+                        Text(
+                            text = message.text,
+                            color = textColor,
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Timestamp and Delivery Status Indicator
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = dateFormat.format(Date(message.timestamp)),
+                            fontSize = 10.sp,
+                            color = textColor.copy(alpha = 0.7f)
+                        )
+
+                        if (isOutgoing) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            DeliveryStatusIcon(status = message.status, onRetry = onRetry)
+                        }
+                    }
+                }
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Copy Text") },
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("BlueMez Message", message.text))
+                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        showMenu = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete Message") },
+                    onClick = {
+                        onDelete()
+                        showMenu = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentBubbleContent(
+    attachment: AttachmentEntity,
+    isOutgoing: Boolean,
+    onOpen: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val isTransferring = attachment.transferStatus == TransferStatus.TRANSFERRING
+    val isCompleted = attachment.transferStatus == TransferStatus.COMPLETED
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+    ) {
+        if (attachment.isImage && isCompleted && attachment.localPath != null) {
+            AsyncImage(
+                model = File(attachment.localPath),
+                contentDescription = attachment.fileName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onOpen() }
+            )
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.2f))
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (attachment.isVideo) Icons.Default.Videocam else Icons.Default.Image,
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = attachment.fileName,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = formatFileSize(attachment.fileSize),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (isTransferring) {
+                    IconButton(onClick = onCancel, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel", modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+
+        if (isTransferring) {
+            Spacer(modifier = Modifier.height(4.dp))
+            LinearProgressIndicator(
+                progress = { attachment.progressPercent },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "${(attachment.progressPercent * 100).toInt()}% transferring...",
+                fontSize = 10.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeliveryStatusIcon(status: String, onRetry: () -> Unit) {
+    when (status) {
+        MessageStatus.PENDING -> {
+            Icon(
+                imageVector = Icons.Default.Schedule,
+                contentDescription = "Pending (Offline)",
+                modifier = Modifier.size(13.dp),
+                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+            )
+        }
+        MessageStatus.SENDING -> {
+            CircularProgressIndicator(
+                modifier = Modifier.size(11.dp),
+                strokeWidth = 1.5.dp,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+        }
+        MessageStatus.DELIVERED -> {
+            Icon(
+                imageVector = Icons.Default.DoneAll,
+                contentDescription = "Delivered",
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+            )
+        }
+        MessageStatus.READ -> {
+            Icon(
+                imageVector = Icons.Default.DoneAll,
+                contentDescription = "Read",
+                modifier = Modifier.size(14.dp),
+                tint = CyanAccent
+            )
+        }
+        MessageStatus.FAILED -> {
+            IconButton(
+                onClick = onRetry,
+                modifier = Modifier.size(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Retry",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun formatFileSize(bytes: Long): String {
+    return when {
+        bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024f * 1024f))
+        bytes >= 1024 -> String.format(Locale.getDefault(), "%.1f KB", bytes / 1024f)
+        else -> "$bytes B"
+    }
+}
