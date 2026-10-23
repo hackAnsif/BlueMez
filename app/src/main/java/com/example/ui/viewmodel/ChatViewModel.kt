@@ -98,6 +98,24 @@ class ChatViewModel(
             chatRepository.updateCustomFriendName(peerId, newName)
         }
     }
+
+    fun clearConversation() {
+        viewModelScope.launch {
+            chatRepository.clearConversation(peerId)
+        }
+    }
+
+    fun deleteConversation(deleteMedia: Boolean = false) {
+        viewModelScope.launch {
+            chatRepository.deleteConversation(peerId, deleteMedia)
+        }
+    }
+
+    fun removeContact(keepHistory: Boolean = true) {
+        viewModelScope.launch {
+            chatRepository.removeContact(peerId, keepHistory)
+        }
+    }
 }
 
 class ChatViewModelFactory(

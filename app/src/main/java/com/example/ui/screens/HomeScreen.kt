@@ -1,8 +1,9 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,17 +22,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,6 +43,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -76,16 +74,44 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    onNavigateToDiscovery: () -> Unit,
     onNavigateToChat: (String) -> Unit,
-    onNavigateToTransfers: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToContacts: () -> Unit
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
     val isHosting by viewModel.isHosting.collectAsState()
     val conversations by viewModel.conversationItems.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var isSearchExpanded by remember { mutableStateOf(false) }
+
+    var selectedItemForDeletion by remember { mutableStateOf<ConversationItem?>(null) }
+
+    if (selectedItemForDeletion != null) {
+        val item = selectedItemForDeletion!!
+        val name = item.friend?.customName ?: item.conversation.peerId
+        AlertDialog(
+            onDismissRequest = { selectedItemForDeletion = null },
+            title = { Text("Delete Conversation?") },
+            text = {
+                Text("Delete conversation history with $name? Your saved contact will remain available.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteConversation(item.conversation.conversationId)
+                        selectedItemForDeletion = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedItemForDeletion = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -95,20 +121,20 @@ fun HomeScreen(
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(MaterialTheme.colorScheme.primaryContainer)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Bluetooth,
                                 contentDescription = "Logo",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "BlueMez",
+                            text = "BlueMez Chats",
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                         )
                     }
@@ -120,18 +146,6 @@ fun HomeScreen(
                     ) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     }
-                    IconButton(
-                        onClick = onNavigateToTransfers,
-                        modifier = Modifier.testTag("nav_transfers_button")
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = "Transfers")
-                    }
-                    IconButton(
-                        onClick = onNavigateToSettings,
-                        modifier = Modifier.testTag("nav_settings_button")
-                    ) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -140,12 +154,12 @@ fun HomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = onNavigateToDiscovery,
+                onClick = onNavigateToContacts,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("scan_fab")
+                modifier = Modifier.testTag("new_chat_fab")
             ) {
-                Icon(Icons.Default.BluetoothSearching, contentDescription = "Scan Devices")
+                Icon(Icons.Default.Chat, contentDescription = "New Chat")
             }
         }
     ) { innerPadding ->
@@ -154,12 +168,12 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Search Bar (Expandable)
+            // Expandable Search Bar
             AnimatedVisibility(visible = isSearchExpanded) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.updateSearchQuery(it) },
-                    placeholder = { Text("Search chats or friends...") },
+                    placeholder = { Text("Search conversations...") },
                     singleLine = true,
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
@@ -170,7 +184,7 @@ fun HomeScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
                         .testTag("search_text_input")
                 )
             }
@@ -179,13 +193,13 @@ fun HomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 ),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(14.dp)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -197,16 +211,16 @@ fun HomeScreen(
                             OutlinedButton(
                                 onClick = { viewModel.disconnectActive() },
                                 modifier = Modifier.height(32.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text("Disconnect", fontSize = 11.sp)
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Host mode / Listen button & Discover button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -215,41 +229,43 @@ fun HomeScreen(
                             onClick = { viewModel.toggleHosting() },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(44.dp)
+                                .height(40.dp)
                                 .testTag("host_mode_button"),
                             colors = if (isHosting) {
                                 ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                             } else {
                                 ButtonDefaults.buttonColors()
-                            }
+                            },
+                            shape = RoundedCornerShape(8.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Hearing,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (isHosting) "Hosting (Active)" else "Host / Listen",
-                                fontSize = 13.sp,
+                                text = if (isHosting) "Hosting (Active)" else "Host / Listen Mode",
+                                fontSize = 12.sp,
                                 maxLines = 1
                             )
                         }
 
                         OutlinedButton(
-                            onClick = onNavigateToDiscovery,
+                            onClick = onNavigateToContacts,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(44.dp)
-                                .testTag("scan_nearby_button")
+                                .height(40.dp)
+                                .testTag("find_friends_button"),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.BluetoothSearching,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Scan Nearby", fontSize = 13.sp, maxLines = 1)
+                            Text("Find Friends", fontSize = 12.sp, maxLines = 1)
                         }
                     }
                 }
@@ -258,21 +274,21 @@ fun HomeScreen(
             // Conversations List or Empty State
             if (conversations.isEmpty()) {
                 EmptyConversationsState(
-                    onScanClick = onNavigateToDiscovery,
+                    onFindFriendsClick = onNavigateToContacts,
                     onHostClick = { viewModel.toggleHosting() },
                     isHosting = isHosting
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(conversations, key = { it.conversation.conversationId }) { item ->
-                        ConversationListItem(
+                        SafeConversationListItem(
                             item = item,
                             onClick = { onNavigateToChat(item.conversation.peerId) },
-                            onDelete = { viewModel.deleteConversation(item.conversation.conversationId) }
+                            onLongClick = { selectedItemForDeletion = item }
                         )
                     }
                 }
@@ -281,11 +297,12 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ConversationListItem(
+private fun SafeConversationListItem(
     item: ConversationItem,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onLongClick: () -> Unit
 ) {
     val friendName = item.friend?.customName ?: item.friend?.originalDisplayName ?: "Peer ${item.conversation.peerId.take(6)}"
     val dateFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
@@ -296,9 +313,13 @@ private fun ConversationListItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .clip(RoundedCornerShape(12.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .testTag("conversation_card_${item.conversation.peerId}"),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
@@ -308,11 +329,11 @@ private fun ConversationListItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box {
-                UserAvatar(name = friendName, size = 48)
+                UserAvatar(name = friendName, size = 46)
                 if (item.isConnected) {
                     Box(
                         modifier = Modifier
-                            .size(14.dp)
+                            .size(13.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surface)
                             .padding(2.dp)
@@ -345,7 +366,7 @@ private fun ConversationListItem(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -379,22 +400,13 @@ private fun ConversationListItem(
                     }
                 }
             }
-
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete Conversation",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
         }
     }
 }
 
 @Composable
 private fun EmptyConversationsState(
-    onScanClick: () -> Unit,
+    onFindFriendsClick: () -> Unit,
     onHostClick: () -> Unit,
     isHosting: Boolean
 ) {
@@ -408,7 +420,7 @@ private fun EmptyConversationsState(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(80.dp)
+                .size(72.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primaryContainer)
         ) {
@@ -416,37 +428,38 @@ private fun EmptyConversationsState(
                 imageVector = Icons.Default.Chat,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(36.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         Text(
             text = "No Conversations Yet",
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onBackground
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Connect with a friend running BlueMez nearby over Bluetooth Classic without internet.",
-            style = MaterialTheme.typography.bodyMedium,
+            text = "Connect with a friend running BlueMez nearby over Bluetooth Classic.",
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Button(
-            onClick = onScanClick,
+            onClick = onFindFriendsClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .testTag("empty_scan_button")
+                .height(46.dp)
+                .testTag("empty_find_friends_button"),
+            shape = RoundedCornerShape(10.dp)
         ) {
-            Icon(Icons.Default.BluetoothSearching, contentDescription = null)
+            Icon(Icons.Default.BluetoothSearching, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text("Find Nearby Friends")
         }
@@ -457,10 +470,11 @@ private fun EmptyConversationsState(
             onClick = onHostClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .testTag("empty_host_button")
+                .height(46.dp)
+                .testTag("empty_host_button"),
+            shape = RoundedCornerShape(10.dp)
         ) {
-            Icon(Icons.Default.Hearing, contentDescription = null)
+            Icon(Icons.Default.Hearing, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text(if (isHosting) "Hosting Active (Listening...)" else "Start Host / Receive Mode")
         }

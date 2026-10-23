@@ -67,7 +67,7 @@ import java.util.Locale
 @Composable
 fun TransfersScreen(
     viewModel: TransfersViewModel,
-    onNavigateBack: () -> Unit,
+    onNavigateBack: (() -> Unit)? = null,
     onNavigateToMediaViewer: (String) -> Unit
 ) {
     val allTransfers by viewModel.allAttachments.collectAsState()
@@ -81,11 +81,13 @@ fun TransfersScreen(
             TopAppBar(
                 title = { Text("File Transfers", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.testTag("transfers_back_button")
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    if (onNavigateBack != null) {
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.testTag("transfers_back_button")
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
                     }
                 }
             )

@@ -4,13 +4,25 @@
 
 ---
 
+## What's New in v1.1.0
+
+- 💬 **WhatsApp-Style Keyboard Experience**: Fixed composer overlap; text field and send button stay anchored directly above the soft keyboard with smooth auto-scrolling to recent messages.
+- 📱 **4-Tab Bottom Navigation**: Swift navigation across **Chats**, **Contacts**, **Transfers**, and **Settings**.
+- 👥 **Dedicated Contacts Hub**: Organizes saved BlueMez friends, actively discovered nearby devices, and bonded Bluetooth pairings with 1-tap connect.
+- 🛡️ **Safe Conversation & Contact Management**: Top bar overflow options for *Clear Messages*, *Delete Conversation*, and *Remove Contact* with explicit confirmation dialogs (no more accidental one-tap deletions).
+- 🎨 **Appearance Controls & Refined Themes**: Supports **Follow System**, **Light Mode**, and **Dark Mode** with a modern neutral slate palette, persisted via Jetpack DataStore.
+- 📁 **Organized Media Storage**: Structured directories for images, videos, and transfers with disk usage calculation and cache wipe controls in Settings.
+- ⚙️ **CI/CD Automation**: GitHub Actions workflows for continuous integration (`android-ci.yml`) and tag-based release publishing (`android-release.yml`).
+
+---
+
 ## Key Architecture & Features
 
 1. **Pure Offline Operation**:
-   - Zero internet permission requested.
+   - Zero internet permission requested (`android.permission.INTERNET` is not in manifest).
    - Zero telemetry, third-party analytics, accounts, or cloud database storage.
-   - Private conversation database stored locally via **Room**.
-   - Cloud backup explicitly disabled in backup rules to safeguard personal data.
+   - Private conversation database stored locally via **Room** SQLite.
+   - Cloud backup explicitly disabled in `backup_rules.xml` and `data_extraction_rules.xml` to safeguard personal data.
 
 2. **Bluetooth Classic RFCOMM Protocol**:
    - Custom service UUID: `6e400001-b5a3-f393-e0a9-e50e24dcca9e`.
@@ -46,7 +58,7 @@
 Follow this checklist to test BlueMez on two physical Android phones:
 
 ### Prerequisites:
-- 2 physical Android phones running Android 7.0 (API 24) or higher (Android 12/13/14+ supported).
+- 2 physical Android phones running Android 8.0 (API 26) or higher.
 - BlueMez installed on both devices.
 - Bluetooth enabled in Android settings on both devices.
 
@@ -58,12 +70,11 @@ Follow this checklist to test BlueMez on two physical Android phones:
    - Tap **Get Started**.
 
 2. **Starting Host / Receive Mode**:
-   - On **Phone A**: Tap the **Host / Listen** button on the Home screen.
+   - On **Phone A**: Tap the **Host / Listen** button on the Chats tab.
    - The status updates to **Hosting (Active)**. Phone A is now listening for incoming RFCOMM connections from BlueMez.
 
 3. **Scanning & Connecting**:
-   - On **Phone B**: Tap **Scan Nearby** (or the floating action button).
-   - Phone B performs live Bluetooth discovery.
+   - On **Phone B**: Switch to the **Contacts** tab and tap **Start Discovery**.
    - When Phone A appears in the list, tap **Connect** next to Phone A.
    - Phone B initiates the RFCOMM socket connection and performs the binary handshake.
    - Both devices immediately transition to **Connected**!
@@ -75,25 +86,20 @@ Follow this checklist to test BlueMez on two physical Android phones:
 
 5. **Exchanging Real-Time Text, Malayalam & Emojis**:
    - Type a message with emojis and Malayalam text (e.g., `ഹലോ സുഹൃത്തേ! 🚀`).
-   - Tap **Send**.
-   - Notice the status icons:
-     - Sending (spinner) -> Delivered (two checks).
-   - When the other phone reads the message, it updates to blue checkmarks (Read receipt).
+   - Notice the composer stays pinned directly above the keyboard.
+   - Tap **Send**. Status updates: Sending -> Delivered (two checkmarks).
 
 6. **Transferring Images & Videos**:
    - Tap the paperclip attachment icon on the chat bar.
    - Select a photo or short video from the Android Photo Picker.
-   - The app computes the SHA-256 hash, sends a `TransferRequest`, and streams the file in 32 KB chunks.
    - Watch the live progress percentage on both devices.
-   - When complete, the SHA-256 checksum is verified and the image/video appears in the chat bubble.
    - Tap the media bubble to open the **Media Viewer**, play videos, or tap **Export to Storage**.
 
 7. **Testing Offline Queuing & Reconnection**:
    - Turn OFF Bluetooth or walk out of range.
-   - The status changes to **Disconnected / Offline**.
+   - Status changes to **Disconnected / Offline**.
    - Send a message while disconnected. It displays a clock icon (**Pending (Offline)**).
-   - Turn Bluetooth back ON and tap **Host / Listen** / reconnect.
-   - The queued message is automatically flushed and delivered!
+   - Turn Bluetooth back ON and reconnect; the queued message automatically transmits.
 
 ---
 
@@ -111,3 +117,12 @@ This verifies:
 - Filename sanitization against path traversal (`../../../`).
 - SHA-256 integrity calculation.
 - Room database operations, conversation tracking, and pending message retrieval (`ExampleRobolectricTest`).
+- PreferencesManager theme and display name persistence.
+
+---
+
+## Documentation
+
+- [Testing Guide](docs/TESTING.md) — Detailed two-device hardware testing instructions.
+- [Release Process](docs/RELEASING.md) — Versioning, signing, and CI/CD release workflow.
+- [Changelog](CHANGELOG.md) — Version history and release notes.

@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -18,7 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.ui.navigation.Screen
 import com.example.ui.screens.ChatScreen
-import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.MainScreen
 import com.example.ui.screens.MediaViewerScreen
 import com.example.ui.screens.NearbyDevicesScreen
 import com.example.ui.screens.OnboardingScreen
@@ -45,7 +46,14 @@ class MainActivity : ComponentActivity() {
         val app = application as BlueMezApp
 
         setContent {
-            BlueMezTheme {
+            val themeMode by app.preferencesManager.themeModeFlow.collectAsState(initial = "system")
+            val darkTheme = when (themeMode) {
+                "light" -> false
+                "dark" -> true
+                else -> isSystemInDarkTheme()
+            }
+
+            BlueMezTheme(darkTheme = darkTheme) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     BlueMezNavigationApp(app = app)
                 }
@@ -82,12 +90,28 @@ fun BlueMezNavigationApp(app: BlueMezApp) {
                     bluetoothManager = app.bluetoothManager
                 )
             )
-            HomeScreen(
-                viewModel = homeViewModel,
-                onNavigateToDiscovery = { navController.navigate(Screen.NearbyDevices.route) },
+            val discoveryViewModel: DiscoveryViewModel = viewModel(
+                factory = DiscoveryViewModelFactory(
+                    chatRepository = app.chatRepository,
+                    bluetoothManager = app.bluetoothManager
+                )
+            )
+            val transfersViewModel: TransfersViewModel = viewModel(
+                factory = TransfersViewModelFactory(chatRepository = app.chatRepository)
+            )
+            val settingsViewModel: SettingsViewModel = viewModel(
+                factory = SettingsViewModelFactory(chatRepository = app.chatRepository)
+            )
+
+            MainScreen(
+                homeViewModel = homeViewModel,
+                discoveryViewModel = discoveryViewModel,
+                transfersViewModel = transfersViewModel,
+                settingsViewModel = settingsViewModel,
                 onNavigateToChat = { peerId -> navController.navigate(Screen.Chat.createRoute(peerId)) },
-                onNavigateToTransfers = { navController.navigate(Screen.Transfers.route) },
-                onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                onNavigateToMediaViewer = { attachmentId ->
+                    navController.navigate(Screen.MediaViewer.createRoute(attachmentId))
+                }
             )
         }
 
@@ -166,3 +190,4 @@ fun BlueMezNavigationApp(app: BlueMezApp) {
         }
     }
 }
+

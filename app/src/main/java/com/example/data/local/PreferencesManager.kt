@@ -25,6 +25,11 @@ class PreferencesManager(private val context: Context) {
         private val KEY_MAX_IMAGE_MB = intPreferencesKey("max_image_mb")
         private val KEY_MAX_VIDEO_MB = intPreferencesKey("max_video_mb")
         private val KEY_ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+    }
+
+    val themeModeFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_THEME_MODE] ?: "system"
     }
 
     val displayNameFlow: Flow<String> = context.dataStore.data.map { prefs ->
@@ -98,6 +103,12 @@ class PreferencesManager(private val context: Context) {
     suspend fun setOnboardingDone(done: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_ONBOARDING_DONE] = done
+        }
+    }
+
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_THEME_MODE] = mode
         }
     }
 

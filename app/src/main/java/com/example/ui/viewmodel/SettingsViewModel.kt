@@ -16,6 +16,9 @@ class SettingsViewModel(
     val displayName: StateFlow<String> = chatRepository.preferencesManager.displayNameFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "BlueMez User")
 
+    val themeMode: StateFlow<String> = chatRepository.preferencesManager.themeModeFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "system")
+
     val myPeerId: StateFlow<String> = chatRepository.preferencesManager.myPeerIdFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
@@ -34,6 +37,12 @@ class SettingsViewModel(
     fun updateDisplayName(name: String) {
         viewModelScope.launch {
             chatRepository.preferencesManager.setDisplayName(name)
+        }
+    }
+
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch {
+            chatRepository.preferencesManager.setThemeMode(mode)
         }
     }
 

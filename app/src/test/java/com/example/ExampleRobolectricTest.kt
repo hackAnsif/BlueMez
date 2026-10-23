@@ -8,6 +8,7 @@ import com.example.data.local.entity.ConversationEntity
 import com.example.data.local.entity.FriendEntity
 import com.example.data.local.entity.MessageEntity
 import com.example.data.local.entity.MessageStatus
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -115,5 +116,104 @@ class ExampleRobolectricTest {
         friendDao.updateCustomName("peer-test-2", "Best College Friend")
         val updated = friendDao.getFriendByPeerId("peer-test-2")
         assertEquals("Best College Friend", updated?.customName)
+    }
+
+    @Test
+    fun testConversationClearingAndDeletion() = runBlocking {
+        val conversationDao = db.conversationDao()
+        val messageDao = db.messageDao()
+        val friendDao = db.friendDao()
+
+        val peerId = "peer-clear-test"
+        friendDao.insertOrUpdate(
+            FriendEntity(
+                peerId = peerId,
+                bluetoothAddress = "00:11:22:33:44:55",
+                customName = "Test Contact",
+                originalDisplayName = "Contact Device"
+            )
+        )
+
+        conversationDao.insertOrUpdate(
+            ConversationEntity(
+                conversationId = peerId,
+                peerId = peerId,
+                lastMessageText = "Initial message",
+                lastMessageTimestamp = 5000L,
+                unreadCount = 2
+            )
+        )
+
+        messageDao.insertMessage(
+            MessageEntity(
+                messageId = "m-1",
+                conversationId = peerId,
+                senderPeerId = "self",
+                recipientPeerId = peerId,
+                text = "Hello 1",
+                timestamp = 5000L,
+                status = MessageStatus.DELIVERED
+            )
+        )
+        messageDao.insertMessage(
+            MessageEntity(
+                messageId = "m-2",
+                conversationId = peerId,
+                senderPeerId = peerId,
+                recipientPeerId = "self",
+                text = "Hello 2",
+                timestamp = 5001L,
+                status = MessageStatus.READ
+            )
+        )
+
+        // Clear messages for conversation
+        messageDao.deleteMessagesForConversation(peerId)
+        conversationDao.updateLastMessage(
+            conversationId = peerId,
+            lastText = "",
+            timestamp = System.currentTimeMillis()
+        )
+        conversationDao.clearUnreadCount(peerId)
+
+        val remainingMessages = messageDao.getMessagesForConversationFlow(peerId).first()
+        val convAfterClear = conversationDao.getConversation(peerId)
+        assertEquals(0, remainingMessages.size)
+        assertEquals("", convAfterClear?.lastMessageText)
+        assertEquals(0, convAfterClear?.unreadCount)
+
+        // Contact still preserved
+        val friendStillExists = friendDao.getFriendByPeerId(peerId)
+        assertNotNull(friendStillExists)
+
+        // Delete conversation
+        conversationDao.deleteConversation(peerId)
+        val deletedConv = conversationDao.getConversation(peerId)
+        assertEquals(null, deletedConv)
+
+        // Remove contact
+        friendDao.deleteFriend(peerId)
+        val deletedFriend = friendDao.getFriendByPeerId(peerId)
+        assertEquals(null, deletedFriend)
+    }
+
+    @Test
+    fun testPreferencesManagerThemeMode() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsManager = com.example.data.local.PreferencesManager(context)
+
+        // Initial default is "system"
+        val initialTheme = prefsManager.themeModeFlow.first()
+        assertEquals("system", initialTheme)
+
+        // Set to dark mode
+        prefsManager.setThemeMode("dark")
+        val darkTheme = prefsManager.themeModeFlow.first()
+        assertEquals("dark", darkTheme)
+
+        // Set to light mode
+        prefsManager.setThemeMode("light")
+        val lightTheme = prefsManager.themeModeFlow.first()
+        assertEquals("light", lightTheme)
     }
 }

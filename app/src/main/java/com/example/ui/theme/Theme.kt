@@ -12,49 +12,53 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = CyanTeal,
-    onPrimary = Color(0xFF003548),
-    primaryContainer = BluePrimaryDark,
-    onPrimaryContainer = Color(0xFFCAE9FF),
-    secondary = CyanAccent,
-    onSecondary = Color(0xFF00363D),
-    secondaryContainer = Color(0xFF004F58),
-    onSecondaryContainer = Color(0xFF97F0FF),
-    tertiary = Color(0xFF80D4FF),
-    background = DarkBackground,
-    onBackground = Color(0xFFE2E8F0),
-    surface = DarkSurface,
-    onSurface = Color(0xFFF1F5F9),
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = Color(0xFFCBD5E1),
-    outline = DarkOutline,
-    outlineVariant = Color(0xFF26334D)
+    primary = DarkAccentPrimary,
+    onPrimary = Color(0xFF032840),
+    primaryContainer = DarkPrimaryContainer,
+    onPrimaryContainer = DarkOnPrimaryContainer,
+    secondary = DarkAccentTeal,
+    onSecondary = Color(0xFF003831),
+    secondaryContainer = Color(0xFF134E48),
+    onSecondaryContainer = Color(0xFFCCFBF1),
+    tertiary = Color(0xFF7DD3FC),
+    background = DarkNeutralBg,
+    onBackground = DarkNeutralTextPrimary,
+    surface = DarkNeutralSurface,
+    onSurface = DarkNeutralTextPrimary,
+    surfaceVariant = DarkNeutralSurfaceVariant,
+    onSurfaceVariant = DarkNeutralTextSecondary,
+    outline = DarkNeutralOutline,
+    outlineVariant = Color(0xFF283548),
+    error = Color(0xFFF87171),
+    onError = Color(0xFF450A0A)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = BluePrimary,
+    primary = LightAccentPrimary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFD0E8FF),
-    onPrimaryContainer = Color(0xFF001D36),
-    secondary = BluePrimaryLight,
+    primaryContainer = LightPrimaryContainer,
+    onPrimaryContainer = LightOnPrimaryContainer,
+    secondary = LightAccentTeal,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFC7F0FF),
-    onSecondaryContainer = Color(0xFF001F29),
-    tertiary = Color(0xFF023E8A),
-    background = LightBackground,
-    onBackground = Color(0xFF0F172A),
-    surface = LightSurface,
-    onSurface = Color(0xFF0F172A),
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = Color(0xFF475569),
-    outline = LightOutline,
-    outlineVariant = Color(0xFFE2E8F0)
+    secondaryContainer = Color(0xFFCCFBF1),
+    onSecondaryContainer = Color(0xFF115E59),
+    tertiary = Color(0xFF0284C7),
+    background = LightNeutralBg,
+    onBackground = LightNeutralTextPrimary,
+    surface = LightNeutralSurface,
+    onSurface = LightNeutralTextPrimary,
+    surfaceVariant = LightNeutralSurfaceVariant,
+    onSurfaceVariant = LightNeutralTextSecondary,
+    outline = LightNeutralOutline,
+    outlineVariant = Color(0xFFF3F4F6),
+    error = Color(0xFFDC2626),
+    onError = Color.White
 )
 
 @Composable
 fun BlueMezTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Keep consistent branding colors by default
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

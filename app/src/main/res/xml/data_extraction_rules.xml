@@ -2,6 +2,7 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="database" path="bluemez.db" />
+        <exclude domain="file" path="bluemez" />
         <exclude domain="file" path="media" />
     </cloud-backup>
     <device-transfer>

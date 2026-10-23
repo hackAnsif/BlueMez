@@ -8,22 +8,26 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,16 +39,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -58,6 +67,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -85,16 +95,17 @@ import com.example.data.local.entity.MessageStatus
 import com.example.data.local.entity.TransferStatus
 import com.example.ui.components.EditFriendNameDialog
 import com.example.ui.components.UserAvatar
-import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.StatusConnected
 import com.example.ui.theme.StatusDisconnected
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.example.ui.viewmodel.ChatViewModel
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
@@ -110,11 +121,23 @@ fun ChatScreen(
     val inputText by viewModel.inputText.collectAsState()
 
     var showEditNameDialog by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
+    var showOverflowMenu by remember { mutableStateOf(false) }
+    var showClearDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showRemoveContactDialog by remember { mutableStateOf(false) }
 
-    // Scroll to bottom when new messages arrive
+    val listState = rememberLazyListState()
+    val isImeVisible = WindowInsets.isImeVisible
+
+    // WhatsApp-style: Automatically scroll to bottom when new messages arrive or keyboard opens
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    LaunchedEffect(isImeVisible) {
+        if (isImeVisible && messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
@@ -130,6 +153,7 @@ fun ChatScreen(
         }
     }
 
+    // Edit Custom Name Dialog
     if (showEditNameDialog) {
         EditFriendNameDialog(
             initialName = friend?.customName ?: "",
@@ -141,7 +165,92 @@ fun ChatScreen(
         )
     }
 
+    // Clear Conversation Confirmation Dialog
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("Clear Conversation?") },
+            text = {
+                Text("This will remove all message history for this chat on your phone. Your contact details will remain saved. Are you sure?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearConversation()
+                        showClearDialog = false
+                        Toast.makeText(context, "Conversation cleared", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Clear Messages")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Delete Conversation Confirmation Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Conversation?") },
+            text = {
+                Text("This will delete the conversation and its message records from your chats list. Saved attachments will remain in your local app storage.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteConversation(deleteMedia = false)
+                        showDeleteDialog = false
+                        onNavigateBack()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete Conversation")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Remove Contact Confirmation Dialog
+    if (showRemoveContactDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveContactDialog = false },
+            title = { Text("Remove Contact?") },
+            text = {
+                Text("This will remove ${friend?.customName ?: "this user"} from your contacts list. Your conversation history will be preserved.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.removeContact(keepHistory = true)
+                        showRemoveContactDialog = false
+                        Toast.makeText(context, "Contact removed", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Remove Contact")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveContactDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
+        contentWindowInsets = WindowInsets.statusBars,
         topBar = {
             TopAppBar(
                 title = {
@@ -193,6 +302,52 @@ fun ChatScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    IconButton(
+                        onClick = { showOverflowMenu = true },
+                        modifier = Modifier.testTag("chat_overflow_menu_button")
+                    ) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                    }
+
+                    DropdownMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit Contact Name") },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                            onClick = {
+                                showOverflowMenu = false
+                                showEditNameDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Clear Messages") },
+                            leadingIcon = { Icon(Icons.Default.ClearAll, contentDescription = null) },
+                            onClick = {
+                                showOverflowMenu = false
+                                showClearDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete Conversation") },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                            onClick = {
+                                showOverflowMenu = false
+                                showDeleteDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Remove Contact") },
+                            leadingIcon = { Icon(Icons.Default.PersonRemove, contentDescription = null) },
+                            onClick = {
+                                showOverflowMenu = false
+                                showRemoveContactDialog = true
+                            }
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -203,6 +358,8 @@ fun ChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
+                .navigationBarsPadding()
         ) {
             // Messages LazyColumn
             LazyColumn(
@@ -241,17 +398,17 @@ fun ChatScreen(
                 }
             }
 
-            // Message Composer Bottom Bar
+            // WhatsApp-style anchored Composer Bottom Bar
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
+                tonalElevation = 3.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Bottom
                 ) {
                     IconButton(
                         onClick = {
@@ -259,7 +416,10 @@ fun ChatScreen(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                             )
                         },
-                        modifier = Modifier.testTag("attach_media_button")
+                        modifier = Modifier
+                            .size(44.dp)
+                            .padding(bottom = 2.dp)
+                            .testTag("attach_media_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.AttachFile,
@@ -271,15 +431,18 @@ fun ChatScreen(
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = { viewModel.onInputTextChanged(it) },
-                        placeholder = { Text("Message (Bluetooth offline)...") },
+                        placeholder = { Text("Message (Bluetooth)...") },
                         modifier = Modifier
                             .weight(1f)
+                            .defaultMinSize(minHeight = 44.dp)
                             .testTag("chat_input_field"),
                         shape = RoundedCornerShape(24.dp),
-                        maxLines = 4,
+                        maxLines = 5,
                         colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                            focusedBorderColor = MaterialTheme.colorScheme.primary
                         )
                     )
 
@@ -290,6 +453,7 @@ fun ChatScreen(
                         enabled = inputText.isNotBlank(),
                         modifier = Modifier
                             .size(44.dp)
+                            .padding(bottom = 2.dp)
                             .clip(CircleShape)
                             .background(
                                 if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary
@@ -323,8 +487,8 @@ private fun MessageBubble(
     var showMenu by remember { mutableStateOf(false) }
     val isOutgoing = message.isOutgoing
     val alignment = if (isOutgoing) Alignment.CenterEnd else Alignment.CenterStart
-    val bubbleColor = if (isOutgoing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-    val textColor = if (isOutgoing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    val bubbleColor = if (isOutgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isOutgoing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     val dateFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
 
     Box(
@@ -458,14 +622,15 @@ private fun AttachmentBubbleContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.2f))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f))
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = if (attachment.isVideo) Icons.Default.Videocam else Icons.Default.Image,
                     contentDescription = null,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -513,14 +678,14 @@ private fun DeliveryStatusIcon(status: String, onRetry: () -> Unit) {
                 imageVector = Icons.Default.Schedule,
                 contentDescription = "Pending (Offline)",
                 modifier = Modifier.size(13.dp),
-                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             )
         }
         MessageStatus.SENDING -> {
             CircularProgressIndicator(
                 modifier = Modifier.size(11.dp),
                 strokeWidth = 1.5.dp,
-                color = MaterialTheme.colorScheme.onPrimary
+                color = MaterialTheme.colorScheme.primary
             )
         }
         MessageStatus.DELIVERED -> {
@@ -528,7 +693,7 @@ private fun DeliveryStatusIcon(status: String, onRetry: () -> Unit) {
                 imageVector = Icons.Default.DoneAll,
                 contentDescription = "Delivered",
                 modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         MessageStatus.READ -> {
@@ -536,7 +701,7 @@ private fun DeliveryStatusIcon(status: String, onRetry: () -> Unit) {
                 imageVector = Icons.Default.DoneAll,
                 contentDescription = "Read",
                 modifier = Modifier.size(14.dp),
-                tint = CyanAccent
+                tint = MaterialTheme.colorScheme.primary
             )
         }
         MessageStatus.FAILED -> {

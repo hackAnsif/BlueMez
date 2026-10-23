@@ -23,11 +23,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Storage
@@ -72,10 +76,11 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val displayName by viewModel.displayName.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
     val myPeerId by viewModel.myPeerId.collectAsState()
     val autoReconnect by viewModel.autoReconnect.collectAsState()
     val readReceipts by viewModel.readReceipts.collectAsState()
@@ -87,7 +92,7 @@ fun SettingsScreen(
     var storageSizeBytes by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
-        val mediaDir = File(context.filesDir, "media")
+        val mediaDir = File(context.filesDir, "bluemez")
         var total = 0L
         if (mediaDir.exists()) {
             mediaDir.walkTopDown().forEach { total += it.length() }
@@ -108,7 +113,7 @@ fun SettingsScreen(
                         viewModel.clearAllData()
                         showClearDataDialog = false
                         Toast.makeText(context, "All local data deleted", Toast.LENGTH_SHORT).show()
-                        onNavigateBack()
+                        onNavigateBack?.invoke()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.testTag("confirm_delete_all_button")
@@ -129,11 +134,13 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text("Settings & Privacy", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.testTag("settings_back_button")
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    if (onNavigateBack != null) {
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.testTag("settings_back_button")
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
                     }
                 }
             )
@@ -218,6 +225,52 @@ fun SettingsScreen(
                             Toast.makeText(context, "Peer ID copied", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "Copy ID", modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+
+            // Section: Appearance (Light / Dark / Follow System)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Appearance", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Choose theme appearance:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            Triple("system", "System", Icons.Default.BrightnessAuto),
+                            Triple("light", "Light", Icons.Default.LightMode),
+                            Triple("dark", "Dark", Icons.Default.DarkMode)
+                        ).forEach { (mode, label, icon) ->
+                            FilterChip(
+                                selected = themeMode == mode,
+                                onClick = { viewModel.setThemeMode(mode) },
+                                label = { Text(label, fontSize = 12.sp) },
+                                leadingIcon = {
+                                    Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                modifier = Modifier.testTag("theme_chip_$mode")
+                            )
                         }
                     }
                 }

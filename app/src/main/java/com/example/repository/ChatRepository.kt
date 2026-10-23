@@ -324,14 +324,30 @@ class ChatRepository(
         messageDao.deleteMessage(messageId)
     }
 
-    suspend fun deleteConversation(conversationId: String) {
+    suspend fun clearConversation(conversationId: String) {
+        messageDao.deleteMessagesForConversation(conversationId)
+        conversationDao.updateLastMessage(conversationId, "", System.currentTimeMillis())
+        conversationDao.clearUnreadCount(conversationId)
+    }
+
+    suspend fun deleteConversation(conversationId: String, deleteMediaFiles: Boolean = false) {
+        if (deleteMediaFiles) {
+            val messages = messageDao.getPendingMessagesForPeer(conversationId)
+            // also delete attachments if any
+        }
         messageDao.deleteMessagesForConversation(conversationId)
         conversationDao.deleteConversation(conversationId)
     }
 
     suspend fun deleteFriend(peerId: String) {
-        deleteConversation(peerId)
+        removeContact(peerId, keepHistory = false)
+    }
+
+    suspend fun removeContact(peerId: String, keepHistory: Boolean = true) {
         friendDao.deleteFriend(peerId)
+        if (!keepHistory) {
+            deleteConversation(peerId)
+        }
     }
 
     suspend fun clearAllData() {
@@ -343,6 +359,7 @@ class ChatRepository(
             preferencesManager.clearSettings()
             try {
                 java.io.File(context.filesDir, "media").deleteRecursively()
+                java.io.File(context.filesDir, "bluemez").deleteRecursively()
             } catch (e: Exception) {}
         }
     }

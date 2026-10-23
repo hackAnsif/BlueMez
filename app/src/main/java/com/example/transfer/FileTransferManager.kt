@@ -48,7 +48,21 @@ class FileTransferManager(
     private val _progressEvents = MutableSharedFlow<TransferProgressEvent>(extraBufferCapacity = 64)
     val progressEvents: SharedFlow<TransferProgressEvent> = _progressEvents.asSharedFlow()
 
-    private val mediaDir = File(context.filesDir, "media").apply { mkdirs() }
+    private val baseDir = File(context.filesDir, "bluemez")
+    val imagesDir = File(baseDir, "media/images").apply { mkdirs() }
+    val videosDir = File(baseDir, "media/videos").apply { mkdirs() }
+    val otherDir = File(baseDir, "media/other").apply { mkdirs() }
+    val incomingTransfersDir = File(baseDir, "transfers/incoming").apply { mkdirs() }
+    val outgoingTransfersDir = File(baseDir, "transfers/outgoing").apply { mkdirs() }
+    val thumbnailsDir = File(baseDir, "thumbnails").apply { mkdirs() }
+
+    private fun getTargetMediaDir(mimeType: String): File {
+        return when {
+            mimeType.startsWith("image/") -> imagesDir
+            mimeType.startsWith("video/") -> videosDir
+            else -> otherDir
+        }
+    }
 
     private class IncomingTransferSession(
         val transferId: String,
@@ -82,8 +96,8 @@ class FileTransferManager(
 
         return withContext(Dispatchers.IO) {
             try {
-                // Copy selected file to private storage cache to calculate hash and stream reliably
-                val cacheFile = File(context.cacheDir, "out_${transferId}_$sanitizedName")
+                // Copy selected file to private storage outgoing folder to calculate hash and stream reliably
+                val cacheFile = File(outgoingTransfersDir, "out_${transferId}_$sanitizedName")
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     FileOutputStream(cacheFile).use { output ->
                         input.copyTo(output)
@@ -158,7 +172,7 @@ class FileTransferManager(
 
         withContext(Dispatchers.IO) {
             try {
-                val tempFile = File(mediaDir, "${request.transferId}.tmp")
+                val tempFile = File(incomingTransfersDir, "${request.transferId}.tmp")
                 if (tempFile.exists()) tempFile.delete()
                 val raf = RandomAccessFile(tempFile, "rw")
                 raf.setLength(request.fileSize)
@@ -295,8 +309,9 @@ class FileTransferManager(
                 // Verify SHA-256
                 val computedHash = computeSha256(FileInputStream(session.tempFile))
                 if (computedHash.equals(complete.sha256, ignoreCase = true)) {
-                    // Finalize file
-                    val finalFile = File(mediaDir, "${complete.transferId}_${session.fileName}")
+                    // Finalize file in appropriate media folder (images, videos, or other)
+                    val targetDir = getTargetMediaDir(session.mimeType)
+                    val finalFile = File(targetDir, "${complete.transferId}_${session.fileName}")
                     session.tempFile.renameTo(finalFile)
 
                     attachmentDao.updateCompletion(complete.transferId, TransferStatus.COMPLETED, finalFile.absolutePath, null)
