@@ -4,11 +4,19 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (optional e.g. v1.1.0)'
+        required: false
+        default: ''
 
 jobs:
   release:
     name: Build & Publish Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Code
@@ -22,16 +30,49 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
 
-      - name: Decode Release Keystore (if secret provided)
-        if: env.KEYSTORE_BASE64 != ''
+      - name: Prepare Keystores & Environment
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          SECRET_STORE_PASS: ${{ secrets.STORE_PASSWORD }}
+          SECRET_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
-          echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/release.keystore" >> $GITHUB_ENV
-          echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          echo "=== Setting up Release Environment & Keystores ==="
+          # 1. Ensure .env exists
+          if [ ! -f .env ]; then
+            touch .env
+            echo "Created empty .env placeholder"
+          fi
+
+          # 2. Restore debug.keystore from debug.keystore.base64 if present (needed for test tasks)
+          if [ -f "debug.keystore.base64" ]; then
+            echo "Restoring debug.keystore from debug.keystore.base64..."
+            base64 -d debug.keystore.base64 > debug.keystore
+          else
+            echo "Generating fallback debug.keystore..."
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          # 3. Handle Release Keystore
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Configuring release keystore from GitHub Secret (KEYSTORE_BASE64)..."
+            echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/my-upload-key.jks"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=$SECRET_STORE_PASS" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=$SECRET_KEY_PASS" >> $GITHUB_ENV
+          else
+            echo "Notice: No KEYSTORE_BASE64 secret found. Generating self-signed release keystore for CI build..."
+            keytool -genkey -v -keystore "$GITHUB_WORKSPACE/my-upload-key.jks" \
+              -storepass android -alias upload -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=BlueMez,OU=Release,O=BlueMez,C=US"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=android" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
+          fi
+          ls -la "$GITHUB_WORKSPACE/my-upload-key.jks"
 
       - name: Run Tests Prior to Release
         run: gradle :app:testDebugUnitTest --no-daemon
@@ -45,10 +86,34 @@ jobs:
           sha256sum *.apk > checksums.sha256
           cat checksums.sha256
 
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bluemez-release-apk
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/checksums.sha256
+          retention-days: 30
+
+      - name: Determine Release Tag
+        id: release_tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            echo "tag=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag=" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: steps.release_tag.outputs.is_release == 'true'
         with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
           files: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/release/checksums.sha256

@@ -55,10 +55,19 @@ git push origin v1.1.0
 ```
 
 The workflow will:
-1. Run JVM and Robolectric unit tests (`gradle :app:testDebugUnitTest`).
-2. Build the optimized release APK (`gradle :app:assembleRelease`).
-3. Compute SHA-256 checksums for release artifacts.
-4. Publish a GitHub Release with the APK and checksum file attached.
+1. Restore or generate required debug and release keystores automatically (using `KEYSTORE_BASE64` secret if provided, or self-signing a release key so CI builds never fail).
+2. Run JVM and Robolectric unit tests (`gradle :app:testDebugUnitTest`).
+3. Build the optimized release APK (`gradle :app:assembleRelease`).
+4. Compute SHA-256 checksums for release artifacts.
+5. Upload the release APK and checksums as GitHub Actions run artifacts (`bluemez-release-apk`).
+6. Publish a GitHub Release with the APK and checksum file attached when triggered by a version tag or manual dispatch with a tag.
+
+### Manual Workflow Dispatch (Web UI)
+You can also trigger a release build directly from GitHub:
+1. Navigate to **Actions** > **Android Release**.
+2. Click **Run workflow**.
+3. Optionally enter a tag name (e.g. `v1.1.0`).
+4. Download the built APK from Artifacts or GitHub Releases!
 
 ---
 

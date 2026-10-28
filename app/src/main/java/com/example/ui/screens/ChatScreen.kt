@@ -9,8 +9,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,8 +71,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -407,44 +413,70 @@ fun ChatScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    IconButton(
-                        onClick = {
-                            mediaPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                            )
-                        },
-                        modifier = Modifier
-                            .size(44.dp)
-                            .padding(bottom = 2.dp)
-                            .testTag("attach_media_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AttachFile,
-                            contentDescription = "Attach File",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { viewModel.onInputTextChanged(it) },
-                        placeholder = { Text("Message (Bluetooth)...") },
+                    // Integrated input capsule combining attachment button and text field
+                    Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .defaultMinSize(minHeight = 44.dp)
-                            .testTag("chat_input_field"),
+                            .defaultMinSize(minHeight = 48.dp),
                         shape = RoundedCornerShape(24.dp),
-                        maxLines = 5,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                            focusedBorderColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.Bottom,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 2.dp, end = 12.dp, top = 2.dp, bottom = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    mediaPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                    )
+                                },
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .testTag("attach_media_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AttachFile,
+                                    contentDescription = "Attach File",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+
+                            TextField(
+                                value = inputText,
+                                onValueChange = { viewModel.onInputTextChanged(it) },
+                                placeholder = {
+                                    Text(
+                                        "Message (Bluetooth)...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                                    )
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("chat_input_field"),
+                                maxLines = 5,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    disabledIndicatorColor = Color.Transparent,
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    cursorColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.width(6.dp))
 
@@ -452,8 +484,7 @@ fun ChatScreen(
                         onClick = { viewModel.sendMessage() },
                         enabled = inputText.isNotBlank(),
                         modifier = Modifier
-                            .size(44.dp)
-                            .padding(bottom = 2.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .background(
                                 if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary
@@ -465,8 +496,8 @@ fun ChatScreen(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Send",
                             tint = if (inputText.isNotBlank()) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(20.dp)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -475,6 +506,7 @@ fun ChatScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     message: MessageEntity,
@@ -497,7 +529,7 @@ private fun MessageBubble(
     ) {
         Column(
             horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start,
-            modifier = Modifier.widthIn(max = 300.dp)
+            modifier = Modifier.widthIn(min = 60.dp, max = 280.dp)
         ) {
             Surface(
                 color = bubbleColor,
@@ -509,12 +541,20 @@ private fun MessageBubble(
                 ),
                 modifier = Modifier
                     .testTag("message_bubble_${message.messageId}")
-                    .clickable {
-                        // If has attachment, open media viewer
-                        message.attachmentId?.let { onOpenMedia(it) }
-                    }
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 16.dp,
+                            bottomStart = if (isOutgoing) 16.dp else 4.dp,
+                            bottomEnd = if (isOutgoing) 4.dp else 16.dp
+                        )
+                    )
+                    .combinedClickable(
+                        onClick = { message.attachmentId?.let { onOpenMedia(it) } },
+                        onLongClick = { showMenu = true }
+                    )
             ) {
-                Column(modifier = Modifier.padding(10.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                     // Attachment Preview if present
                     message.attachmentId?.let { attachId ->
                         val attachmentFlow = remember(attachId) { app.chatRepository.getAttachmentFlow(attachId) }
@@ -531,7 +571,7 @@ private fun MessageBubble(
                                     }
                                 }
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                         }
                     }
 
@@ -545,13 +585,13 @@ private fun MessageBubble(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
-                    // Timestamp and Delivery Status Indicator
+                    // Timestamp and Delivery Status Indicator - wraps content neatly
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.align(Alignment.End)
                     ) {
                         Text(
                             text = dateFormat.format(Date(message.timestamp)),
